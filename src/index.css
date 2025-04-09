@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+.animate-slide {
+  animation: slide 7s linear infinite;
+}
+
+.relative {
+  overflow: hidden; /* already exists based on your code */
+}
+
+@keyframes slide {
+  0% {
+    transform: translateX(100%);
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+  
+ 

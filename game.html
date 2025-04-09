@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Working Tetris</title>
+    <style>
+        /* ... keep previous styles ... */
+    </style>
+</head>
+<body>
+    <!-- Keep same HTML structure -->
+<script>
+// Improved Tetris implementation
+
+const SHAPES = [
+    [[1,1,1,1]],                         // I
+    [[1,1,1,], [0,1,0]],                 // T
+    [[1,1,1], [1,0,0]],                  // L
+    [[1,1,1], [0,0,1]],                  // J
+    [[1,1], [1,1]],                      // O
+    [[1,1,0], [0,1,1]],                 // S
+    [[0,1,1], [1,1,0]]                  // Z
+];
+
+const COLORS = ['#00f0f0', '#f0a000', '#0000f0',
+                '#f0f000', '#a000f0', '#00f000', '#f00000'];
+
+// Key codes and game constants
+const KEY = { LEFT: 37, RIGHT: 39, DOWN: 40, SPACE: 32, UP: 38 };
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 20;
+const BLOCK_SIZE = 30;
+
+let board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+let score = 0;
+let level = 1;
+let ctx, nextCtx;
+let currentPiece, nextPiece;
+let lastTime = 0;
+let dropInterval = 1000;
+let gameOver = false;
+
+class Piece {
+    constructor(shapeIndex) {
+        this.shape = SHAPES[shapeIndex];
+        this.color = COLORS[shapeIndex];
+        this.x = Math.floor(BOARD_WIDTH/2) - Math.floor(this.shape[0].length/2);
+        this.y = -2;
+    }
+
+    rotate(dir) {
+        const newShape = this.shape[0].map((_, i) =>
+            this.shape.map(row => row[i]).reverse()
+        );
+        if (!this.collision(newShape, this.x, this.y)) {
+            this.shape = dir > 0 ? newShape : newShape.reverse();
+        }
+    }
+
+    collision(newX = this.x, newY = this.y, shape = this.shape) {
+        return shape.some((row, dy) => 
+            row.some((cell, dx) => {
+                const x = newX + dx;
+                const y = newY + dy;
+                return cell && (
+                    x < 0 || x >= BOARD_WIDTH ||
+                    y >= BOARD_HEIGHT ||
+                    (y >= 0 && board[y][x])
+                );
+            })
+        );
+    }
+}
+
+function draw() {
+    // Clear canvas
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+    // Draw board
+    board.forEach((row, y) => {
+        row.forEach((value, x) => {
+            if (value) {
+                ctx.fillStyle = value;
+                ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE-1, BLOCK_SIZE-1);
+            }
+        });
+    });
+
+    // Draw current piece
+    if (currentPiece) {
+        ctx.fillStyle = currentPiece.color;
+        currentPiece.shape.forEach((row, y) => {
+            row.forEach((cell, x) => {
+                if (cell) {
+                    ctx.fillRect(
+                        (currentPiece.x + x) * BLOCK_SIZE,
+                        (currentPiece.y + y) * BLOCK_SIZE,
+                        BLOCK_SIZE-1, BLOCK_SIZE-1
+                    );
+                }
+            });
+        });
+    }
+}
+
+function update(time = 0) {
+    if (gameOver) return;
+
+    const deltaTime = time - lastTime;
+    lastTime = time;
+
+    // Auto-drop
+    if (deltaTime > dropInterval) {
+        currentPiece.y++;
+        if (currentPiece.collision()) {
+            currentPiece.y--;
+            mergePiece();
+            clearLines();
+            spawnPiece();
+        }
+        lastTime = time;
+    }
+
+    requestAnimationFrame(update);
+    draw();
+}
+
+function mergePiece() {
+    currentPiece.shape.forEach((row, y) => {
+        row.forEach((cell, x) => {
+            if (cell) {
+                const py = currentPiece.y + y;
+                const px = currentPiece.x + x;
+                if (py >= 0) board[py][px] = currentPiece.color;
+            }
+        });
+    });
+}
+
+function clearLines() {
+    let linesCleared = 0;
+    
+    for (let y = BOARD_HEIGHT - 1; y >= 0; y--) {
+        if (board[y].every(cell => cell)) {
+            board.splice(y, 1);
+            board.unshift(Array(BOARD_WIDTH).fill(0));
+            linesCleared++;
+            y++;
+        }
+    }
+
+    if (linesCleared) {
+        score += [100, 300, 500, 800][linesCleared - 1] * level;
+        document.getElementById('score').textContent = score;
+        
+        if (score > level * 1000) {
+            level++;
+            dropInterval *= 0.8;
+            document.getElementById('level').textContent = level;
+        }
+    }
+}
+
+function spawnPiece() {
+    currentPiece = nextPiece;
+    nextPiece = new Piece(Math.floor(Math.random() * SHAPES.length));
+    
+    if (currentPiece.collision()) {
+        gameOver = true;
+        document.getElementById('restart').style.display = 'block';
+        alert(`Game Over! Score: ${score}`);
+    }
+}
+
+// Event handling
+document.addEventListener('keydown', e => {
+    if (gameOver) return;
+
+    switch(e.keyCode) {
+        case KEY.LEFT:
+            currentPiece.x--;
+            if (currentPiece.collision()) currentPiece.x++;
+            break;
+        case KEY.RIGHT:
+            currentPiece.x++;
+            if (currentPiece.collision()) currentPiece.x--;
+            break;
+        case KEY.DOWN:
+            currentPiece.y++;
+            if (currentPiece.collision()) currentPiece.y--;
+            break;
+        case KEY.UP:
+            currentPiece.rotate(1);
+            break;
+        case KEY.SPACE:
+            while(!currentPiece.collision()) currentPiece.y++;
+            currentPiece.y--;
+            mergePiece();
+            clearLines();
+            spawnPiece();
+            break;
+    }
+    draw();
+});
+
+function init() {
+    ctx = document.getElementById('board').getContext('2d');
+    ctx.canvas.width = BOARD_WIDTH * BLOCK_SIZE;
+    ctx.canvas.height = BOARD_HEIGHT * BLOCK_SIZE;
+    
+    nextPiece = new Piece(Math.floor(Math.random() * SHAPES.length));
+    spawnPiece();
+    requestAnimationFrame(update);
+}
+
+document.getElementById('restart').addEventListener('click', () => {
+    board = Array(BOARD_HEIGHT).fill().map(() => Array(BOARD_WIDTH).fill(0));
+    score = 0;
+    level = 1;
+    dropInterval = 1000;
+    gameOver = false;
+    document.getElementById('score').textContent = '0';
+    document.getElementById('level').textContent = '1';
+    document.getElementById('restart').style.display = 'none';
+    init();
+});
+
+init();
+</script>
+</body>
+</html>
